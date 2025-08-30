@@ -18,6 +18,7 @@ import {
   ContentGeneratorConfig,
   createContentGeneratorConfig,
 } from '../core/contentGenerator.js';
+import { CLAUDE_MODELS } from './models.js';
 import { GeminiClient } from '../core/client.js';
 import { GitService } from '../services/gitService.js';
 import { ClearcutLogger } from '../telemetry/clearcut-logger/clearcut-logger.js';
@@ -592,6 +593,45 @@ describe('Server Config (config.ts)', () => {
       delete paramsWithoutTelemetry.telemetry;
       const config = new Config(paramsWithoutTelemetry);
       expect(config.getTelemetryOtlpProtocol()).toBe('grpc');
+    });
+  });
+
+  describe('Claude model detection', () => {
+    it('should detect Claude models and set USE_CLAUDE auth type', () => {
+      const params: ConfigParameters = {
+        ...baseParams,
+        model: CLAUDE_MODELS['claude-3-7-sonnet'],
+      };
+      const config = new Config(params);
+      
+      // Test that Claude model is detected
+      expect(config.getModel()).toBe(CLAUDE_MODELS['claude-3-7-sonnet']);
+      
+      // Test setModel with Claude model auto-detection
+      const newConfig = new Config(baseParams);
+      newConfig.setModel(CLAUDE_MODELS['claude-3-5-haiku']);
+      
+      const contentGeneratorConfig = newConfig.getContentGeneratorConfig();
+      expect(contentGeneratorConfig.model).toBe(CLAUDE_MODELS['claude-3-5-haiku']);
+      expect(contentGeneratorConfig.authType).toBe(AuthType.USE_CLAUDE);
+    });
+
+    it('should detect claude- prefixed models', () => {
+      const newConfig = new Config(baseParams);
+      newConfig.setModel('claude-3-opus-20240229');
+      
+      const contentGeneratorConfig = newConfig.getContentGeneratorConfig();
+      expect(contentGeneratorConfig.authType).toBe(AuthType.USE_CLAUDE);
+    });
+
+    it('should not affect non-Claude models', () => {
+      const newConfig = new Config(baseParams);
+      const originalAuthType = newConfig.getContentGeneratorConfig().authType;
+      
+      newConfig.setModel('gemini-1.5-pro');
+      
+      const contentGeneratorConfig = newConfig.getContentGeneratorConfig();
+      expect(contentGeneratorConfig.authType).toBe(originalAuthType);
     });
   });
 });

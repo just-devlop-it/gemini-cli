@@ -11,6 +11,7 @@ import {
   ContentGeneratorConfig,
   createContentGeneratorConfig,
 } from '../core/contentGenerator.js';
+import { CLAUDE_MODELS } from './models.js';
 import { PromptRegistry } from '../prompts/prompt-registry.js';
 import { ToolRegistry } from '../tools/tool-registry.js';
 import { LSTool } from '../tools/ls.js';
@@ -428,9 +429,18 @@ export class Config {
     return this.contentGeneratorConfig?.model || this.model;
   }
 
+  private isClaudeModel(model: string): boolean {
+    return Object.values(CLAUDE_MODELS).includes(model as any) || 
+           model.startsWith('claude-');
+  }
+
   setModel(newModel: string): void {
     if (this.contentGeneratorConfig) {
       this.contentGeneratorConfig.model = newModel;
+      // Auto-detect Claude models and set appropriate auth type
+      if (this.isClaudeModel(newModel)) {
+        this.contentGeneratorConfig.authType = AuthType.USE_CLAUDE;
+      }
     }
   }
 

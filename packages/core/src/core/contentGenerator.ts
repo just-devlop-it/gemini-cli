@@ -20,6 +20,7 @@ import { Config } from '../config/config.js';
 import { UserTierId } from '../code_assist/types.js';
 import { LoggingContentGenerator } from './loggingContentGenerator.js';
 import { InstallationManager } from '../utils/installationManager.js';
+import { ClaudeContentGenerator } from './claudeContentGenerator.js';
 
 /**
  * Interface abstracting the core functionalities for generating content and counting tokens.
@@ -47,6 +48,7 @@ export enum AuthType {
   USE_GEMINI = 'gemini-api-key',
   USE_VERTEX_AI = 'vertex-ai',
   CLOUD_SHELL = 'cloud-shell',
+  USE_CLAUDE = 'claude-vertex',
 }
 
 export type ContentGeneratorConfig = {
@@ -128,6 +130,10 @@ export async function createContentGenerator(
       ),
       gcConfig,
     );
+  }
+
+  if (config.authType === AuthType.USE_CLAUDE) {
+    return new ClaudeContentGenerator(config);
   }
 
   if (
