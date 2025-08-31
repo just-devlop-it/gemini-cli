@@ -9,7 +9,6 @@ import {
   Content,
   Part,
   FunctionCall,
-  FunctionResponse,
   FinishReason
 } from '@google/genai';
 
@@ -22,6 +21,7 @@ export class ClaudeAdapter {
   private client: AnthropicVertex;
   
   constructor(config: ClaudeAdapterConfig) {
+    console.log('Debug: Claude adapter config - region:', config.region, 'projectId:', config.projectId);
     this.client = new AnthropicVertex({
       region: config.region,
       projectId: config.projectId,
@@ -30,28 +30,38 @@ export class ClaudeAdapter {
 
   async generateContent(request: GenerateContentParameters): Promise<GenerateContentResponse> {
     const claudeRequest = this.convertToClaudeFormat(request);
-    const claudeResponse = await this.client.messages.create(claudeRequest);
+    const claudeResponse = await this.client.messages.create({
+      ...claudeRequest,
+      model: request.model,
+    });
     return this.convertToGeminiFormat(claudeResponse);
   }
 
   async *generateContentStream(request: GenerateContentParameters): AsyncGenerator<GenerateContentResponse> {
     const claudeRequest = this.convertToClaudeFormat(request);
-    const stream = await this.client.messages.create({
-      ...claudeRequest,
-      stream: true,
-    });
+    
+    try {
+      const stream = await this.client.messages.create({
+        ...claudeRequest,
+        model: request.model,
+        stream: true,
+      }) as any;
 
-    for await (const chunk of stream) {
-      if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-        yield this.convertStreamChunkToGemini(chunk);
+      for await (const chunk of stream) {
+        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+          yield this.convertStreamChunkToGemini(chunk);
+        }
       }
+    } catch (error) {
+      throw new Error(`Claude streaming error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   async countTokens(request: CountTokensParameters): Promise<CountTokensResponse> {
     // Claude doesn't have a direct token counting API
     // Approximate based on text length (rough estimation: 1 token ≈ 4 characters)
-    const text = this.extractTextFromContents(request.contents || []);
+    const contents = Array.isArray(request.contents) ? request.contents as Content[] : [];
+    const text = this.extractTextFromContents(contents);
     const approximateTokens = Math.ceil(text.length / 4);
     
     return {
@@ -73,19 +83,27 @@ export class ClaudeAdapter {
     if (request.config?.systemInstruction) {
       if (typeof request.config.systemInstruction === 'string') {
         systemPrompt = request.config.systemInstruction;
-      } else if (request.config.systemInstruction.text) {
-        systemPrompt = request.config.systemInstruction.text;
+      } else if (typeof request.config.systemInstruction === 'object' && 'parts' in request.config.systemInstruction) {
+        // Extract text from parts
+        const parts = request.config.systemInstruction.parts || [];
+        for (const part of parts) {
+          if ('text' in part && part.text) {
+            systemPrompt += part.text + ' ';
+          }
+        }
+        systemPrompt = systemPrompt.trim();
       }
     }
 
     // Convert contents to Claude messages format
-    for (const content of request.contents || []) {
-      if (content.role === 'user') {
+    const contents = Array.isArray(request.contents) ? request.contents as Content[] : [];
+    for (const content of contents) {
+      if ('role' in content && content.role === 'user') {
         messages.push({
           role: 'user',
           content: this.convertPartsToClaudeContent(content.parts || []),
         });
-      } else if (content.role === 'model') {
+      } else if ('role' in content && content.role === 'model') {
         messages.push({
           role: 'assistant',
           content: this.convertPartsToClaudeContent(content.parts || []),
@@ -94,7 +112,6 @@ export class ClaudeAdapter {
     }
 
     const claudeRequest: any = {
-      model: request.model,
       messages,
       max_tokens: request.config?.maxOutputTokens || 4096,
     };
@@ -183,7 +200,7 @@ export class ClaudeAdapter {
       }
     }
 
-    return {
+    const response = {
       candidates: [
         {
           content: {
@@ -198,18 +215,25 @@ export class ClaudeAdapter {
       promptFeedback: {
         safetyRatings: [],
       },
-    };
+      text: parts.find(p => 'text' in p)?.text || '',
+      functionCalls: parts.filter(p => 'functionCall' in p).map(p => p.functionCall!),
+      data: undefined,
+      executableCode: undefined,
+      codeExecutionResult: undefined,
+    } as GenerateContentResponse;
+
+    return response;
   }
 
   private convertStreamChunkToGemini(chunk: any): GenerateContentResponse {
-    return {
+    const response = {
       candidates: [
         {
           content: {
             parts: [{ text: chunk.delta.text }],
             role: 'model',
           },
-          finishReason: FinishReason.UNSPECIFIED,
+          finishReason: FinishReason.STOP,
           index: 0,
           safetyRatings: [],
         },
@@ -217,7 +241,14 @@ export class ClaudeAdapter {
       promptFeedback: {
         safetyRatings: [],
       },
-    };
+      text: chunk.delta.text,
+      functionCalls: [],
+      data: undefined,
+      executableCode: undefined,
+      codeExecutionResult: undefined,
+    } as GenerateContentResponse;
+
+    return response;
   }
 
   private mapFinishReason(claudeStopReason: string | undefined): FinishReason {
@@ -229,16 +260,18 @@ export class ClaudeAdapter {
       case 'tool_use':
         return FinishReason.STOP;
       default:
-        return FinishReason.UNSPECIFIED;
+        return FinishReason.STOP;
     }
   }
 
   private extractTextFromContents(contents: Content[]): string {
     let text = '';
     for (const content of contents) {
-      for (const part of content.parts || []) {
-        if ('text' in part && part.text) {
-          text += part.text + ' ';
+      if ('parts' in content && content.parts) {
+        for (const part of content.parts) {
+          if ('text' in part && part.text) {
+            text += part.text + ' ';
+          }
         }
       }
     }

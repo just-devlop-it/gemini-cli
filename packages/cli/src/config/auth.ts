@@ -39,5 +39,12 @@ export const validateAuthMethod = (authMethod: string): string | null => {
     return null;
   }
 
+  if (authMethod === AuthType.USE_CLAUDE) {
+    if (!process.env['ANTHROPIC_VERTEX_PROJECT_ID']) {
+      return 'ANTHROPIC_VERTEX_PROJECT_ID environment variable not found. Add that to your environment and try again (no reload needed if using .env)!';
+    }
+    return null;
+  }
+
   return 'Invalid auth method selected.';
 };

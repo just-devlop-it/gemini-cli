@@ -11,7 +11,6 @@ import {
   ContentGeneratorConfig,
   createContentGeneratorConfig,
 } from '../core/contentGenerator.js';
-import { CLAUDE_MODELS } from './models.js';
 import { PromptRegistry } from '../prompts/prompt-registry.js';
 import { ToolRegistry } from '../tools/tool-registry.js';
 import { LSTool } from '../tools/ls.js';
@@ -36,6 +35,7 @@ import {
   StartSessionEvent,
 } from '../telemetry/index.js';
 import {
+  CLAUDE_MODELS,
   DEFAULT_GEMINI_EMBEDDING_MODEL,
   DEFAULT_GEMINI_FLASH_MODEL,
 } from './models.js';
@@ -371,7 +371,11 @@ export class Config {
     logCliConfiguration(this, new StartSessionEvent(this, this.toolRegistry));
   }
 
-  async refreshAuth(authMethod: AuthType) {
+  async refreshAuth(authType: AuthType): Promise<void> {
+    if (this.interactive) {
+      console.log('Debug: refreshAuth called with authType =', authType);
+      console.log('Debug: current model =', this.getModel());
+    }
     // Save the current conversation history before creating a new client
     let existingHistory: Content[] = [];
     if (this.geminiClient && this.geminiClient.isInitialized()) {
@@ -381,7 +385,7 @@ export class Config {
     // Create new content generator config
     const newContentGeneratorConfig = createContentGeneratorConfig(
       this,
-      authMethod,
+      authType,
     );
 
     // Create and initialize new client in local variable first
@@ -392,7 +396,7 @@ export class Config {
     // throughtSignature from Genai to Vertex will fail, we need to strip them
     const fromGenaiToVertex =
       this.contentGeneratorConfig?.authType === AuthType.USE_GEMINI &&
-      authMethod === AuthType.LOGIN_WITH_GOOGLE;
+      authType === AuthType.LOGIN_WITH_GOOGLE;
 
     // Only assign to instance properties after successful initialization
     this.contentGeneratorConfig = newContentGeneratorConfig;

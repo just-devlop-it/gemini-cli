@@ -609,16 +609,16 @@ describe('Server Config (config.ts)', () => {
       
       // Test setModel with Claude model auto-detection
       const newConfig = new Config(baseParams);
-      newConfig.setModel(CLAUDE_MODELS['claude-3-5-haiku']);
+      newConfig.setModel(CLAUDE_MODELS['claude-3-7-sonnet']);
       
       const contentGeneratorConfig = newConfig.getContentGeneratorConfig();
-      expect(contentGeneratorConfig.model).toBe(CLAUDE_MODELS['claude-3-5-haiku']);
+      expect(contentGeneratorConfig.model).toBe(CLAUDE_MODELS['claude-3-7-sonnet']);
       expect(contentGeneratorConfig.authType).toBe(AuthType.USE_CLAUDE);
     });
 
     it('should detect claude- prefixed models', () => {
       const newConfig = new Config(baseParams);
-      newConfig.setModel('claude-3-opus-20240229');
+      newConfig.setModel('claude-opus-4');
       
       const contentGeneratorConfig = newConfig.getContentGeneratorConfig();
       expect(contentGeneratorConfig.authType).toBe(AuthType.USE_CLAUDE);

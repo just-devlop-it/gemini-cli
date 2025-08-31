@@ -1,32 +1,41 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ClaudeContentGenerator } from './claudeContentGenerator.js';
-import { ClaudeAdapter } from '../adapters/claudeAdapter.js';
 import { GenerateContentParameters, FinishReason } from '@google/genai';
 import { AuthType } from './contentGenerator.js';
 
 // Mock the ClaudeAdapter
-vi.mock('../adapters/claudeAdapter.js');
+vi.mock('../adapters/claudeAdapter.js', () => ({
+  ClaudeAdapter: vi.fn().mockImplementation(() => ({
+    generateContent: vi.fn(),
+    generateContentStream: vi.fn(),
+    countTokens: vi.fn(),
+    embedContent: vi.fn(),
+  })),
+}));
 
 describe('ClaudeContentGenerator', () => {
   let generator: ClaudeContentGenerator;
   let mockAdapter: any;
 
   beforeEach(() => {
-    mockAdapter = {
-      generateContent: vi.fn(),
-      generateContentStream: vi.fn(),
-      countTokens: vi.fn(),
-      embedContent: vi.fn(),
-    };
-    
-    (ClaudeAdapter as any).mockImplementation(() => mockAdapter);
+    // Set up environment variables
+    process.env['ANTHROPIC_VERTEX_PROJECT_ID'] = 'test-project';
+    process.env['CLOUD_ML_REGION'] = 'us-central1';
 
+    // Create generator instance
     const config = {
       model: 'claude-3-5-sonnet-v2@20241022',
       authType: AuthType.USE_CLAUDE,
     };
 
     generator = new ClaudeContentGenerator(config);
+
+    // Get the mocked adapter instance
+    mockAdapter = (generator as any).adapter;
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
   });
 
   describe('generateContent', () => {
@@ -143,6 +152,7 @@ describe('ClaudeContentGenerator', () => {
       mockAdapter.countTokens.mockResolvedValue(mockTokenResponse);
 
       const request = {
+        model: 'claude-3-5-sonnet-v2@20241022',
         contents: [
           {
             role: 'user' as const,
@@ -196,7 +206,7 @@ describe('ClaudeContentGenerator', () => {
       const originalEnv = process.env;
       
       // Clear environment variables
-      delete process.env.ANTHROPIC_VERTEX_PROJECT_ID;
+      delete process.env['ANTHROPIC_VERTEX_PROJECT_ID'];
       
       expect(() => {
         new ClaudeContentGenerator({
