@@ -19,16 +19,6 @@ export const CLAUDE_MODELS = {
   
   // Claude 3.7 series - Extended thinking capabilities
   'claude-3-7-sonnet': 'claude-3-7-sonnet',
-  
-  // Claude 3.5 series - Current generation
-  'claude-3-5-sonnet-v2': 'claude-3-5-sonnet-v2',
-  'claude-3-5-sonnet': 'claude-3-5-sonnet',
-  'claude-3-5-haiku': 'claude-3-5-haiku',
-  
-  // Claude 3 series - Previous generation (legacy)
-  'claude-3-opus': 'claude-3-opus@20240229',
-  'claude-3-sonnet': 'claude-3-sonnet@20240229', 
-  'claude-3-haiku': 'claude-3-haiku@20240307',
 } as const;
 
 export const DEFAULT_CLAUDE_MODEL = CLAUDE_MODELS['claude-3-7-sonnet'];
